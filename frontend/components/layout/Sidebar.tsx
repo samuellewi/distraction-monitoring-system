@@ -3,11 +3,47 @@
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+
+type StoredAuthUser = {
+  name?: unknown;
+};
+
+function getStoredUserName() {
+  try {
+    const storedUser = localStorage.getItem("authUser");
+
+    if (!storedUser) return "User";
+
+    const parsedUser = JSON.parse(storedUser) as StoredAuthUser;
+
+    if (typeof parsedUser.name === "string" && parsedUser.name.trim()) {
+      return parsedUser.name;
+    }
+  } catch {
+    return "User";
+  }
+
+  return "User";
+}
+
+function subscribeToAuthUser(callback: () => void) {
+  window.addEventListener("storage", callback);
+
+  return () => {
+    window.removeEventListener("storage", callback);
+  };
+}
 
 export default function Sidebar() {
   const path = usePathname();
   const [tracking, setTracking] = useState(false);
+  const userName = useSyncExternalStore(
+    subscribeToAuthUser,
+    getStoredUserName,
+    () => "User",
+  );
+  const userInitial = userName.charAt(0).toUpperCase();
 
   const menu = [
     {
@@ -116,10 +152,10 @@ export default function Sidebar() {
       <div className="border-t border-gray-200 pt-4">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-9 h-9 bg-blue-500 text-white flex items-center justify-center rounded-full text-sm">
-            B
+            {userInitial}
           </div>
           <div>
-            <p className="text-sm font-medium">Brian</p>
+            <p className="text-sm font-medium">{userName}</p>
             <p className="text-xs text-gray-400">Active User</p>
           </div>
         </div>

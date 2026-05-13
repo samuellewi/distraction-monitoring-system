@@ -8,14 +8,43 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const data = [
-  { name: "Productive", value: 320 },
-  { name: "Distracting", value: 140 },
-];
-
 const COLORS = ["#22c55e", "#ef4444"];
 
-export default function Chart() {
+type Props = {
+  productiveSeconds: number;
+  distractingSeconds: number;
+  totalSeconds?: number;
+};
+
+function formatDuration(seconds: number) {
+  const totalMinutes = Math.floor(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${minutes}m`;
+}
+
+export default function Chart({
+  productiveSeconds,
+  distractingSeconds,
+  totalSeconds,
+}: Props) {
+  const chartData = [
+    { name: "Productive", value: productiveSeconds },
+    { name: "Distracting", value: distractingSeconds },
+  ];
+  const hasTrackedTime = chartData.some((item) => item.value > 0);
+  const displayData = hasTrackedTime
+    ? chartData
+    : [
+        { name: "Productive", value: 0 },
+        { name: "Distracting", value: 0 },
+      ];
+  const displayedTotalSeconds =
+    totalSeconds ?? productiveSeconds + distractingSeconds;
+
   return (
     <div className="bg-white rounded-2xl border p-6 h-[320px] flex flex-col">
 
@@ -27,14 +56,14 @@ export default function Chart() {
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={data}
+              data={displayData}
               cx="50%"
               cy="50%"
               innerRadius={60}
               outerRadius={90}
               dataKey="value"
             >
-              {data.map((entry, index) => (
+              {displayData.map((entry, index) => (
                 <Cell key={index} fill={COLORS[index]} />
               ))}
 
@@ -46,7 +75,9 @@ export default function Chart() {
         </ResponsiveContainer>
 
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-xl font-bold">460m</span>
+          <span className="text-xl font-bold">
+            {formatDuration(displayedTotalSeconds)}
+          </span>
           <span className="text-xs text-gray-400">Total Time</span>
         </div>
 

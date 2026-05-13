@@ -113,7 +113,13 @@ export default function LoginForm() {
 
         <p className="text-sm mt-6 text-center">
           No account?{" "}
-          <span className="text-blue-600 cursor-pointer">Sign up</span>
+          <button
+            type="button"
+            onClick={() => router.push("/register")}
+            className="text-blue-600 cursor-pointer"
+          >
+            Sign up
+          </button>
         </p>
 
         <div className="mt-8 flex justify-center gap-3 flex-wrap">

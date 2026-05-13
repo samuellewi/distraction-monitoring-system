@@ -9,12 +9,28 @@ import ActivityList from "@/components/dashboard/ActivityList";
 const API_BASE_URL = "http://127.0.0.1:4000/api";
 
 type Summary = {
+  totalTrackedSeconds?: number;
   productiveSeconds: number;
   distractingSeconds: number;
 };
 
 type TopApp = {
   appName: string;
+};
+
+type Activity = {
+  id: string;
+  appName: string;
+  startedAt: string;
+  durationSeconds: number;
+  category: {
+    name: string;
+    type: string;
+  } | null;
+};
+
+type ActivitiesResponse = {
+  items: Activity[];
 };
 
 type ApiResponse<T> = {
@@ -28,6 +44,7 @@ type ApiResponse<T> = {
 type DashboardData = {
   summary: Summary;
   topApps: TopApp[];
+  activities: Activity[];
 };
 
 class ApiError extends Error {
@@ -89,12 +106,19 @@ export default function DashboardPage() {
       setError("");
 
       try {
-        const [summary, topApps] = await Promise.all([
+        const [summary, topApps, activitiesResult] = await Promise.all([
           fetchDashboardResource<Summary>("/dashboard/summary", authToken),
           fetchDashboardResource<TopApp[]>("/dashboard/top-apps", authToken),
+          fetchDashboardResource<ActivitiesResponse>("/activities?limit=5", authToken),
         ]);
 
-        setData({ summary, topApps });
+        const recentActivities = [...activitiesResult.items].sort(
+          (left, right) =>
+            new Date(right.startedAt).getTime() -
+            new Date(left.startedAt).getTime(),
+        );
+
+        setData({ summary, topApps, activities: recentActivities });
       } catch (error) {
         if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
           localStorage.removeItem("authToken");
@@ -156,8 +180,12 @@ export default function DashboardPage() {
 
       {/* BOTTOM */}
       <div className="grid grid-cols-2 gap-6">
-        <Chart />
-        <ActivityList />
+        <Chart
+          productiveSeconds={data?.summary.productiveSeconds ?? 0}
+          distractingSeconds={data?.summary.distractingSeconds ?? 0}
+          totalSeconds={data?.summary.totalTrackedSeconds}
+        />
+        <ActivityList activities={data?.activities ?? []} />
       </div>
 
     </div>
