@@ -13,6 +13,12 @@ type Category = {
   type: CategoryType;
 };
 
+const CLASSIFICATION_OPTIONS: CategoryType[] = [
+  "PRODUCTIVE",
+  "DISTRACTING",
+  "NEUTRAL",
+];
+
 type DeleteCategoryResponse = {
   id: string;
 };
@@ -31,11 +37,24 @@ type ApiResponse<T> = {
   };
 };
 
+class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 function getCategoryErrorMessage<T>(result: ApiResponse<T>) {
   const fieldErrors = result.error?.details?.fieldErrors;
   const firstFieldError = fieldErrors?.name?.[0] || fieldErrors?.type?.[0];
 
-  return firstFieldError || result.error?.message || "Unable to save category.";
+  return (
+    firstFieldError ||
+    result.error?.message ||
+    "Unable to save app classification."
+  );
 }
 
 function getCategoryTypeDisplay(type: CategoryType) {
@@ -59,6 +78,13 @@ function getCategoryTypeDisplay(type: CategoryType) {
   };
 }
 
+function isAuthError(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    (error.status === 401 || error.status === 403)
+  );
+}
+
 async function requestCategory<T>(
   path: string,
   token: string,
@@ -76,7 +102,7 @@ async function requestCategory<T>(
   const result = (await response.json()) as ApiResponse<T>;
 
   if (!response.ok || !result.success || result.data === undefined) {
-    throw new Error(getCategoryErrorMessage(result));
+    throw new ApiError(getCategoryErrorMessage(result), response.status);
   }
 
   return result.data;
@@ -86,12 +112,15 @@ export default function CategoriesPage() {
   const router = useRouter();
   const [apps, setApps] = useState<Category[]>([]);
   const [newApp, setNewApp] = useState("");
+  const [selectedClassification, setSelectedClassification] =
+    useState<CategoryType>("NEUTRAL");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   const productiveCount = apps.filter(app => app.type === "PRODUCTIVE").length;
   const distractingCount = apps.filter(app => app.type === "DISTRACTING").length;
+  const neutralCount = apps.filter(app => app.type === "NEUTRAL").length;
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
@@ -109,8 +138,17 @@ export default function CategoriesPage() {
         const categories = await requestCategory<Category[]>("/categories", token);
         setApps(categories);
       } catch (error) {
+        if (isAuthError(error)) {
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("authUser");
+          router.replace("/login");
+          return;
+        }
+
         setError(
-          error instanceof Error ? error.message : "Unable to load categories.",
+          error instanceof Error
+            ? error.message
+            : "Unable to load app classifications.",
         );
       } finally {
         setIsLoading(false);
@@ -139,22 +177,35 @@ export default function CategoriesPage() {
         method: "POST",
         body: JSON.stringify({
           name: appName,
-          type: "DISTRACTING",
+          type: selectedClassification,
         }),
       });
 
       setApps((currentApps) => [...currentApps, createdCategory]);
       setNewApp("");
+      setSelectedClassification("NEUTRAL");
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Unable to add app.");
+      if (isAuthError(error)) {
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("authUser");
+        router.replace("/login");
+        return;
+      }
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to add app classification.",
+      );
     } finally {
       setIsSaving(false);
     }
   }
 
-  async function toggleApp(app: Category) {
+  async function updateAppClassification(app: Category, nextType: CategoryType) {
     const token = localStorage.getItem("authToken");
-    const nextType = app.type === "PRODUCTIVE" ? "DISTRACTING" : "PRODUCTIVE";
+
+    if (app.type === nextType) return;
 
     if (!token) {
       router.replace("/login");
@@ -179,8 +230,17 @@ export default function CategoriesPage() {
         ),
       );
     } catch (error) {
+      if (isAuthError(error)) {
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("authUser");
+        router.replace("/login");
+        return;
+      }
+
       setError(
-        error instanceof Error ? error.message : "Unable to update category.",
+        error instanceof Error
+          ? error.message
+          : "Unable to update app classification.",
       );
     }
   }
@@ -212,18 +272,35 @@ export default function CategoriesPage() {
         currentApps.filter((currentApp) => currentApp.id !== deletedCategory.id),
       );
     } catch (error) {
+      if (isAuthError(error)) {
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("authUser");
+        router.replace("/login");
+        return;
+      }
+
       setError(
-        error instanceof Error ? error.message : "Unable to delete category.",
+        error instanceof Error
+          ? error.message
+          : "Unable to delete app classification.",
       );
     }
   }
 
   return (
     <div className="p-6 space-y-6">
+      {/* TITLE */}
+      <div>
+        <h1 className="text-2xl font-semibold">App Classification</h1>
+        <p className="text-sm text-gray-500">
+          Define whether each app is productive, distracting, or neutral.
+        </p>
+      </div>
+
       <div className="flex gap-3">
         <input
           type="text"
-          placeholder="Add app name..."
+          placeholder="App name..."
           value={newApp}
           onChange={(e) => setNewApp(e.target.value)}
           className="border rounded-lg px-4 py-3 outline-none flex-1"
@@ -234,6 +311,24 @@ export default function CategoriesPage() {
           }}
         />
 
+        <select
+          value={selectedClassification}
+          onChange={(e) =>
+            setSelectedClassification(e.target.value as CategoryType)
+          }
+          className="border rounded-lg px-4 py-3 outline-none bg-white"
+        >
+          {CLASSIFICATION_OPTIONS.map((classification) => {
+            const typeDisplay = getCategoryTypeDisplay(classification);
+
+            return (
+              <option key={classification} value={classification}>
+                {typeDisplay.label}
+              </option>
+            );
+          })}
+        </select>
+
         <button
           type="button"
           onClick={addApp}
@@ -242,14 +337,6 @@ export default function CategoriesPage() {
         >
           {isSaving ? "Adding..." : "+ Add App"}
         </button>
-      </div>
-
-      {/* TITLE */}
-      <div>
-        <h1 className="text-2xl font-semibold">App Classification</h1>
-        <p className="text-sm text-gray-500">
-          Choose which apps are productive or distracting
-        </p>
       </div>
 
       {/* LIST */}
@@ -285,19 +372,26 @@ export default function CategoriesPage() {
                   {typeDisplay.label}
                 </span>
 
-                <button
-                  type="button"
-                  onClick={() => toggleApp(app)}
-                  className={`w-12 h-6 flex items-center rounded-full p-1 transition ${
-                    app.type === "PRODUCTIVE" ? "bg-green-500" : "bg-gray-300"
-                  }`}
+                <select
+                  value={app.type}
+                  onChange={(e) =>
+                    updateAppClassification(
+                      app,
+                      e.target.value as CategoryType,
+                    )
+                  }
+                  className="border rounded-lg px-3 py-2 text-sm outline-none bg-white"
                 >
-                  <div
-                    className={`w-4 h-4 bg-white rounded-full shadow transform transition ${
-                      app.type === "PRODUCTIVE" ? "translate-x-6" : ""
-                    }`}
-                  />
-                </button>
+                  {CLASSIFICATION_OPTIONS.map((classification) => {
+                    const optionDisplay = getCategoryTypeDisplay(classification);
+
+                    return (
+                      <option key={classification} value={classification}>
+                        {optionDisplay.label}
+                      </option>
+                    );
+                  })}
+                </select>
 
                 <button
                   type="button"
@@ -327,6 +421,13 @@ export default function CategoriesPage() {
             Distracting Apps:{" "}
             <span className="font-medium text-red-500">
               {distractingCount}
+            </span>
+          </p>
+
+          <p>
+            Neutral Apps:{" "}
+            <span className="font-medium text-gray-600">
+              {neutralCount}
             </span>
           </p>
         </div>
