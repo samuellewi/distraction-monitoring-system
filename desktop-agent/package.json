@@ -1,0 +1,15 @@
+{
+  "name": "distraction-monitoring-desktop-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal macOS and Windows desktop tracking agent for the distraction monitoring system.",
+  "main": "tracker.js",
+  "scripts": {
+    "start": "node tracker.js",
+    "dev": "node tracker.js",
+    "check": "node --check tracker.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
