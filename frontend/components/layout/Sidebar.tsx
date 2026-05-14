@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
@@ -37,6 +37,7 @@ function subscribeToAuthUser(callback: () => void) {
 
 export default function Sidebar() {
   const path = usePathname();
+  const router = useRouter();
   const [tracking, setTracking] = useState(false);
   const userName = useSyncExternalStore(
     subscribeToAuthUser,
@@ -44,6 +45,12 @@ export default function Sidebar() {
     () => "User",
   );
   const userInitial = userName.charAt(0).toUpperCase();
+
+  function handleLogout() {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("authUser");
+    router.replace("/login");
+  }
 
   const menu = [
     {
@@ -110,8 +117,11 @@ export default function Sidebar() {
                 group-hover:scale-110
               `}>
 
-              <img
+              <Image
                 src={tracking ? "/icons/stop.svg" : "/icons/play_arrow.svg"}
+                alt=""
+                width={20}
+                height={20}
                 className="w-5 h-5 transition-transform duration-200 group-hover:rotate-120"
               />
             </div>
@@ -160,7 +170,11 @@ export default function Sidebar() {
           </div>
         </div>
 
-        <button className="w-full text-sm text-red-500 bg-red-50 py-2 rounded-lg hover:bg-red-100 transition">
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full text-sm text-red-500 bg-red-50 py-2 rounded-lg hover:bg-red-100 transition"
+        >
           Logout
         </button>
       </div>
