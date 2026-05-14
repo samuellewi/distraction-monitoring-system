@@ -1,8 +1,37 @@
-export default function BreakdownChart({
-  filter,
-}: {
+type CategoryBreakdown = {
+  type: string;
+  totalDurationSeconds: number;
+  percentage: number;
+};
+
+type Props = {
   filter: string;
-}) {
+  items: CategoryBreakdown[];
+  isLoading: boolean;
+};
+
+const TYPE_COLORS: Record<string, string> = {
+  PRODUCTIVE: "bg-green-400",
+  DISTRACTING: "bg-red-400",
+  NEUTRAL: "bg-gray-400",
+};
+
+function formatType(type: string) {
+  return type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+}
+
+function formatDuration(seconds: number) {
+  const totalMinutes = Math.floor(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${minutes}m`;
+}
+
+export default function BreakdownChart({ filter, items, isLoading }: Props) {
+  const visibleItems = items.filter((item) => item.totalDurationSeconds > 0);
 
   return (
     <div className="bg-white border rounded-2xl p-6">
@@ -16,28 +45,31 @@ export default function BreakdownChart({
       </p>
 
       <div className="space-y-4">
+        {isLoading ? (
+          <p className="text-sm text-gray-500">Loading breakdown...</p>
+        ) : null}
 
-        <div>
-          <div className="flex justify-between text-sm mb-1">
-            <span>Social Media</span>
-            <span>40%</span>
-          </div>
+        {!isLoading && visibleItems.length === 0 ? (
+          <p className="text-sm text-gray-500">No category data for this period.</p>
+        ) : null}
 
-          <div className="w-full bg-gray-100 h-2 rounded-full">
-            <div className="bg-red-400 h-2 rounded-full w-[40%]" />
-          </div>
-        </div>
+        {visibleItems.map((item) => (
+          <div key={item.type}>
+            <div className="flex justify-between text-sm mb-1">
+              <span>{formatType(item.type)}</span>
+              <span>
+                {item.percentage}% · {formatDuration(item.totalDurationSeconds)}
+              </span>
+            </div>
 
-        <div>
-          <div className="flex justify-between text-sm mb-1">
-            <span>Entertainment</span>
-            <span>30%</span>
+            <div className="w-full bg-gray-100 h-2 rounded-full">
+              <div
+                className={`${TYPE_COLORS[item.type] ?? "bg-blue-400"} h-2 rounded-full`}
+                style={{ width: `${item.percentage}%` }}
+              />
+            </div>
           </div>
-
-          <div className="w-full bg-gray-100 h-2 rounded-full">
-            <div className="bg-yellow-400 h-2 rounded-full w-[30%]" />
-          </div>
-        </div>
+        ))}
 
       </div>
 
